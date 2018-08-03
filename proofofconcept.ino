@@ -2,11 +2,9 @@
 //#include <SPI.h>
 #include <RestServer.h> //https://github.com/brunoluiz/arduino-restserver
 #include <RestClient.h> //https://github.com/csquared/arduino-restclient
-//#include <Arduino.h> 
 #include <AESLib.h> //https://github.com/DavyLandman/AESLib
 #include <Base64.h> //https://github.com/adamvr/arduino-base64
 #include <ArduinoJson.h> //https://github.com/bblanchon/ArduinoJson
-//#include <string.h>
 
 #define DEBUG true
 
@@ -16,6 +14,7 @@ byte mac[] = {
 
 //shared key
 int clientId[5] = {'0','1','2','3','4'};
+uint8_t clientSecret[16] = {'A','B','C','D','E','F','G','H','I','J','0','1','2','3','4','5'};
 char key[16];
 
 EthernetServer server(80);
@@ -25,7 +24,6 @@ IPAddress ip(192, 168, 192, 80);
 
 void getConnexion(char* query = "", char* body = "", char* bearer = "") {
   
-  uint8_t clientSecret[16] = {'A','B','C','D','E','F','G','H','I','J','0','1','2','3','4','5'};
   // send jwt to Oauth2.0 server
   RestClient client = RestClient("jsonplaceholder.typicode.com");
   String response = "";
@@ -54,9 +52,9 @@ void getConnexion(char* query = "", char* body = "", char* bearer = "") {
     strcpy(key,decoded);
   
     //send response
-    rest.sendResponse(ACCEPTED,"application/json",0);
+    rest.sendResponse(ACCEPTED,0);
   } else {
-    rest.sendResponse(UNAUTHORIZED,"application/json",0);
+    rest.sendResponse(UNAUTHORIZED,0);
   }
 }
 
@@ -79,14 +77,14 @@ void getWeather(char* query = "", char* body = "", char* bearer = "") {
 
     //attach and send data
     rest.addData("encoded", encoded);
-    rest.sendResponse(OK,"application/json",0);
+    rest.sendResponse(OK,0);
   } else {
-    rest.sendResponse(NO_CONTENT,"application/json",0);
+    rest.sendResponse(NO_CONTENT,0);
   }
 }
 
 void notFound(char* data = "") {
-  rest.sendResponse(NOT_FOUND,"application/json",0);
+  rest.sendResponse(NOT_FOUND,0);
 }
 
 void setup() {
