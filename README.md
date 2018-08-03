@@ -8,15 +8,11 @@ the message layer.
 
 ### Dependencies
 
- [RestServer](https://github.com/tigerwill90/RestServer)
-
- [RestClient](https://github.com/csquared/arduino-restclient)
-
- [AesLib](https://github.com/DavyLandman/AESLib)
-
- [Base64](https://github.com/adamvr/arduino-base64)
-
- [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
+ [RestServer](https://github.com/tigerwill90/RestServer)\s\s
+ [RestClient](https://github.com/csquared/arduino-restclient)\s\s
+ [AesLib](https://github.com/DavyLandman/AESLib)\s\s
+ [Base64](https://github.com/adamvr/arduino-base64)\s\s
+ [ArduinoJson](https://github.com/bblanchon/ArduinoJson)\s\s
 
 
 ### Getting started
