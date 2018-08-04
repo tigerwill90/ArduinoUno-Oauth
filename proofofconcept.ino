@@ -27,21 +27,22 @@ IPAddress ip(192, 168, 192, 80);
 void getConnexion(char* query = "", char* body = "", char* bearer = "") {
   
   // send jwt to Oauth2.0 server
-  RestClient client = RestClient("jsonplaceholder.typicode.com");
+  RestClient client = RestClient("192.168.192.29");
   String response = "";
   //client.setHeader(bearer);
-  int statusCode = client.get("/posts/1", &response);
+  int statusCode = client.get("/keys", &response);
 
   if (200 == statusCode) {
     // Receive json en parse response
-    char json[] = "{\"key\": \"DZqq88ynCDS51jRahqz2/wAAAAAAAABH\"}";
-    //char json[response.length()];
-    //response.toCharArray(json,response.length());
+    //char json[] = "{\"key\": \"DZqq88ynCDS51jRahqz2/wAAAAAAAABH\"}";
+    char json[response.length() + 1];
+    response.toCharArray(json,response.length() + 1);
     StaticJsonBuffer<50> jsonBuffer;
     JsonObject& root = jsonBuffer.parseObject(json);
   
     // decode b64 key
     char* encrypted = root["key"];
+    
     int input2Len = strlen(encrypted);
     int decodedLength = base64_dec_len(encrypted, input2Len);
     char decoded[decodedLength];
