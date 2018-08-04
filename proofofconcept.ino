@@ -13,10 +13,15 @@ const byte mac[] PROGMEM = {
   0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
 };
 
-//shared key
+// client ID
 const uint8_t clientId[5] PROGMEM = {'0','1','2','3','4'};
-const uint8_t clientSecret[16] PROGMEM = {'A','B','C','D','E','F','G','H','I','J','0','1','2','3','4','5'};
-const char clientSecretEncrypted[32] PROGMEM = {0};
+
+// shared key between Oauth2.0 and IoT
+uint8_t clientSecret[16] = {'A','B','C','D','E','F','G','H','I','J','0','1','2','3','4','5'};
+
+// shared key between device and IoT
+// KdrxnE/VsUJ9NgDeDvlZXAAA
+// test with 012345ABCDEFGHIJ
 char key[16];
 
 EthernetServer server(80);
@@ -25,24 +30,26 @@ RestServer rest(server);
 IPAddress ip(192, 168, 192, 80);
 
 void getConnexion(char* query = "", char* body = "", char* bearer = "") {
-  
-  // send jwt to Oauth2.0 server
+  //send jwt to Oauth2.0 server via a post request
   RestClient client = RestClient("192.168.192.29");
   String response = "";
-  //client.setHeader(bearer);
-  int statusCode = client.get("/keys", &response);
-
+  int statusCode = client.post("/keys",bearer,&response);
+  //int statusCode = 200;
   if (200 == statusCode) {
     // Receive json en parse response
-    //char json[] = "{\"key\": \"DZqq88ynCDS51jRahqz2/wAAAAAAAABH\"}";
+    //char json[] = "{\"key\": \"KdrxnE/VsUJ9NgDeDvlZXAAA\"}";
     char json[response.length() + 1];
     response.toCharArray(json,response.length() + 1);
     StaticJsonBuffer<50> jsonBuffer;
-    JsonObject& root = jsonBuffer.parseObject(json);
+    JsonObject& input = jsonBuffer.parseObject(json);
   
     // decode b64 key
-    char* encrypted = root["key"];
-    
+    char* encrypted = input["key"];
+
+    // clear the jsonbuffer
+    //jsonBuffer.clear();
+
+    // decode the b64 key
     int input2Len = strlen(encrypted);
     int decodedLength = base64_dec_len(encrypted, input2Len);
     char decoded[decodedLength];
@@ -50,6 +57,7 @@ void getConnexion(char* query = "", char* body = "", char* bearer = "") {
   
     //decrypt key
     aes128_dec_single(clientSecret, decoded);
+    Serial.println(decoded);
   
     //set global key
     strcpy(key,decoded);
@@ -63,6 +71,7 @@ void getConnexion(char* query = "", char* body = "", char* bearer = "") {
 
 void getWeather(char* query = "", char* body = "", char* bearer = "") {
   if (strlen(key) > 0) {
+    Serial.println(key);
     //some sort of data to return
     char data[] = {'B','A','C','H','E','L','O','R','O','A','U','T','H','2','.','0'};
     
@@ -102,6 +111,30 @@ void setup() {
   server.begin();
   Serial.println(Ethernet.localIP());
 
+  // TODO : remove junk testing code
+
+  /*
+  char data[16] = {'0','1','2','3','4','5','A','B','C','D','E','F','G','H','I','J'};
+  
+  //encrpyt
+  aes128_enc_single(clientSecret, data);
+  // base 64 encoding
+  int inputLen = sizeof(data);
+  int encodedLength = base64_enc_len(inputLen);
+  char e[encodedLength];
+  base64_encode(e, data, encodedLength);
+  Serial.println(e);
+  int input2Len = strlen(e);
+  int decodedLength = base64_dec_len(e, input2Len);
+  Serial.println(decodedLength);
+  char d[16];
+  base64_decode(d, e, input2Len);
+  //decrypt key
+  aes128_dec_single(clientSecret, d);
+  Serial.println(d);
+  Serial.println(strlen(d));
+  */
+  
   rest.addRoute(GET, "/weather", getWeather);
   rest.addRoute(GET, "/connect", getConnexion);
   rest.onNotFound(notFound);
