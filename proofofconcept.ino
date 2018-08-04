@@ -16,6 +16,7 @@ const byte mac[] PROGMEM = {
 //shared key
 const uint8_t clientId[5] PROGMEM = {'0','1','2','3','4'};
 const uint8_t clientSecret[16] PROGMEM = {'A','B','C','D','E','F','G','H','I','J','0','1','2','3','4','5'};
+const char clientSecretEncrypted[32] PROGMEM = {0};
 char key[16];
 
 EthernetServer server(80);
