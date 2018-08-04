@@ -5,16 +5,17 @@
 #include <AESLib.h> //https://github.com/DavyLandman/AESLib
 #include <Base64.h> //https://github.com/adamvr/arduino-base64
 #include <ArduinoJson.h> //https://github.com/bblanchon/ArduinoJson
+#include <avr/pgmspace.h>
 
 #define DEBUG true
 
-byte mac[] = {
+const byte mac[] PROGMEM = {
   0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
 };
 
 //shared key
-int clientId[5] = {'0','1','2','3','4'};
-uint8_t clientSecret[16] = {'A','B','C','D','E','F','G','H','I','J','0','1','2','3','4','5'};
+const uint8_t clientId[5] PROGMEM = {'0','1','2','3','4'};
+const uint8_t clientSecret[16] PROGMEM = {'A','B','C','D','E','F','G','H','I','J','0','1','2','3','4','5'};
 char key[16];
 
 EthernetServer server(80);
