@@ -1,22 +1,33 @@
+/**
+ * @author : SYLVAIN MULLER
+ * @version : v0.3-dev
+ * @date : 05.08.2018
+ * 
+ * This file is part of Bachelor's degree
+ * of High School of Management of Geneva (HEG) 
+ * 
+ * subject : Securing an IoT untrusted network with Oauth2.0 protocol
+ */
 #include <Ethernet.h>
 #include <SPI.h>
-#include <RestServer.h> //https://github.com/brunoluiz/arduino-restserver
+#include <RestServer.h> //https://github.com/tigerwill90/RestServer
 #include <RestClient.h> //https://github.com/csquared/arduino-restclient
 #include <AESLib.h> //https://github.com/DavyLandman/AESLib
 #include <Base64.h> //https://github.com/adamvr/arduino-base64
 #include <ArduinoJson.h> //https://github.com/bblanchon/ArduinoJson
 #include <avr/pgmspace.h>
+#include <MemoryFree.h> //https://github.com/maniacbug/MemoryFree/tree/master/examples/FreeMemory
 
 #define DEBUG true
 
 const byte mac[] PROGMEM = {
-  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
+  0x49, 0xBE, 0x09, 0xC7, 0x03, 0x5A
 };
 
 // client ID
 //const uint8_t clientId[5] = {'0','1','2','3','4'};
 
-// shared key between Oauth2.0 and IoT
+// shared key between authorization server and IoT
 const uint8_t clientSecret[16] = {'A','B','C','D','E','F','G','H','I','J','0','1','2','3','4','5'};
 
 EthernetServer server(80);
@@ -24,18 +35,40 @@ RestServer rest(server);
 
 IPAddress ip(192, 168, 192, 80);
 
-void getWeather(char* query = "", char* body = "", char* bearer = "") {
+/**
+ * @route : /protected
+ * void(char* char* char*)
+ * 
+ * @info
+ * The goal of this function is to return
+ * data provided by a connector to a TRUSTED
+ * device. The data is super secret and 
+ * MUST BE encrypted with a SHARED KEY 
+ */
+void getProtectedResource(char* query = "", char* body = "", char* bearer = "") {
   
   /**
-   * Send the jwt to Oauth2.0 server via a post request
+   * Send the jwt to authorization server via a post request
    * 
    * @improvement
    * For a correct RESTFul implementation, we would send a GET request
    * and attach jwt to Authorization header but the RESTclient has
    * very small header size.
    * 
-   * @info
-   * Proof of possession :
+   * Introspection : 
+   * link : https://tools.ietf.org/html/draft-ietf-oauth-introspection-11
+   * The protected resource (Arduino UNO) can query the authorization server to
+   * determine the validity of the token. At any time, the authorization server
+   * can invalidate the access token and break connexion between device and 
+   * the protected resource. The protected SHOULD be authorized to query the 
+   * authorization server by submitting a clientId and a clientSecret. Whitout
+   * TLS supprot, this last point is vulnerable to man-in-the-middle attack.
+   * 
+   * Proof of possession : RFC 7800
+   * link : https://tools.ietf.org/html/rfc7800
+   * 
+   * Need to be developped
+   * 
    */
   RestClient client = RestClient("192.168.192.29");
   String response = "";
@@ -83,13 +116,15 @@ void getWeather(char* query = "", char* body = "", char* bearer = "") {
        * @block : 128bits
        * @param : [16] uint8_t* secret, [16] uint8_t* plaintext
        * 
-       * The Oauth2.0 Server send a sharing key to encrypt data
-       * between the UNO and a device. Since no TLS is available
-       * on the UNO, we need to register the IOT to the Oauth Server.
+       * Why ECB mode shouldn't be used ? https://blog.filippo.io/the-ecb-penguin/
        * 
-       * In the process of registration, the Oauth server generate a
+       * The authorization server send a sharing key to encrypt data
+       * between the protected resource and a device. Since no TLS is available
+       * on the Arduino UNO, we need to register the IOT to the authorization server.
+       * 
+       * In the process of registration, the authorization server generate a
        * strong "clientSecret". This secret is used for decrypt all
-       * data from Oauth server.
+       * data from authorization server.
        * 
        * Now the key can shared key can be safly transported over
        * HTTP request
@@ -101,9 +136,37 @@ void getWeather(char* query = "", char* body = "", char* bearer = "") {
        * The resource data 
        * 
        * It's just an example, should capture any digital/analog data
-       * that need to be send to the client
+       * that need to be send to the client. Due to the very low amount
+       * of memory available, the data should be len <= 16
+       * 
+       * If needed, the data size is adjusted to the cipherblock with
+       * padding. The method for padding byte is defined in ANSI X.923
+       * of ISO/IEC 9797-1
+       * 
+       * link : https://en.wikipedia.org/wiki/Padding_%28cryptography%29#Byte_padding
        */
-      char data[16] = {'B','A','C','H','E','L','O','R','O','A','U','T','H','2','.','0'};
+      char data[16] = "BACHELO";
+      if (strlen(data) < 16) {;
+        char k = '0';
+        char l = '0';
+        for (int i = strlen(data); i < 15; i++) {
+          k++;
+          if (k > '9') {
+            l++;
+          }
+          data[i] = '0';
+        }
+        if (k == '9') {
+          data[14] = '1';
+          data[15] = '0';
+        } else if (k > '9') {
+          data[14] = '1';
+          data[15] = l;
+        } else {
+          k++;
+          data[15] = k;  
+        }
+      }
       
       /**
        * Data encryption
@@ -124,12 +187,19 @@ void getWeather(char* query = "", char* body = "", char* bearer = "") {
       // base 64 encoding
       int inputLen = sizeof(data);
       int encodedLength = base64_enc_len(inputLen);
-      char encoded[encodedLength];
+      char encoded[encodedLength]; //base64 len should be 24
       base64_encode(encoded, data, encodedLength);
-      //encoded[strlen(encoded)-1] = "=";  
+      
+      /**
+       * Maybe a memory leak or base64 encoding implementation auto pad to a 32 len array
+       * We need to correct the encoded string with a -10 len troncat
+       */
+      encoded[strlen(encoded)-10] = 0;
+      //Serial.println(encoded);  
       
       //send response
       rest.addData("encoded", encoded);
+      Serial.println(freeMemory());
       rest.sendResponse(OK,0);
       }
       break;
@@ -145,6 +215,7 @@ void getWeather(char* query = "", char* body = "", char* bearer = "") {
 
 void notFound(char* data = "") {
   rest.sendResponse(NOT_FOUND,0);
+  Serial.println(freeMemory());
 }
 
 void setup() {
@@ -152,6 +223,7 @@ void setup() {
   #if DEBUG
     Serial.begin(9600); //opens serial port, sets data rate to 9600bps
   #endif
+
   pinMode(LED_BUILTIN, OUTPUT);
 
   Ethernet.begin(mac,ip);
@@ -159,8 +231,16 @@ void setup() {
   server.begin();
   Serial.println(Ethernet.localIP());
 
-  rest.addRoute(GET, "/weather", getWeather);
+  /**
+   * 909 bytes available without calling RestServer
+   * 569 bytes available without not found handler
+   * 539 bytes available before execution
+   */
+  
+  rest.addRoute(GET, "/protected", getProtectedResource);
   rest.onNotFound(notFound);
+
+  Serial.println(freeMemory());
 }
 
 void loop() {
