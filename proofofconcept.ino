@@ -34,7 +34,6 @@ void getConnexion(char* query = "", char* body = "", char* bearer = "") {
   RestClient client = RestClient("192.168.192.29");
   String response = "";
   int statusCode = client.post("/keys",bearer,&response);
-  //int statusCode = 200;
   if (200 == statusCode) {
     // Receive json en parse response
     //char json[] = "{\"key\": \"KdrxnE/VsUJ9NgDeDvlZXAAA\"}";
@@ -47,7 +46,7 @@ void getConnexion(char* query = "", char* body = "", char* bearer = "") {
     char* encrypted = input["key"];
 
     // clear the jsonbuffer
-    //jsonBuffer.clear();
+    jsonBuffer.clear();
 
     // decode the b64 key
     int input2Len = strlen(encrypted);
@@ -57,7 +56,7 @@ void getConnexion(char* query = "", char* body = "", char* bearer = "") {
   
     //decrypt key
     aes128_dec_single(clientSecret, decoded);
-    Serial.println(decoded);
+    //Serial.println(decoded);
   
     //set global key
     strcpy(key,decoded);
