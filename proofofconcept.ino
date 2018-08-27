@@ -20,8 +20,8 @@
 
 #define DEBUG true
 
-const byte mac[] PROGMEM = {
-  0x49, 0xBE, 0x09, 0xC7, 0x03, 0x5A
+byte mac[] = {
+  0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED
 };
 
 // shared key between authorization server and IoT
@@ -31,6 +31,9 @@ EthernetServer server(80);
 RestServer rest(server);
 
 IPAddress ip(192, 168, 192, 80);
+IPAddress gateway(192, 168, 192, 1);
+IPAddress dnsServer(62, 2, 21, 165);
+IPAddress subnet(255, 255, 255, 0);
 
 /**
  * @route : /protected
@@ -71,6 +74,7 @@ void getProtectedResource(const char* query = "", const char* body = "", const c
   String response = "";
   client.setHeader("authorization: Basic MDEyMzQ1");
   int statusCode = client.post("/keys",bearer, &response);
+  char* code;
   switch(statusCode) {
     case 200:
       {
@@ -86,128 +90,132 @@ void getProtectedResource(const char* query = "", const char* body = "", const c
        */
       char json[response.length() + 1];
       response.toCharArray(json,response.length() + 1);
-      StaticJsonBuffer<50> jsonBuffer; // 50 for single mode, and 60 for cbc with IV
+      StaticJsonBuffer<52> jsonBuffer; // 50 for single mode, and 60 for cbc with IV
       JsonObject& input = jsonBuffer.parseObject(json);
-      char* encrypted = input["key"];
+      bool active = input["active"];
+
+      if (active) {  
+        char* encrypted = input["key"];
+        
+        // clear the jsonbuffer
+        jsonBuffer.clear();
+    
+        /**
+         * Base 64 decoding
+         * 
+         * @info
+         * To avoid non-ascii and all sort of special characters,
+         * it's a common practice to encode in base64 an encrypted
+         * cipher. The goal is to avoid non-HTTP-compatible characters
+         */
+        int input2Len = strlen(encrypted);
+        int decodedLength = base64_dec_len(encrypted, input2Len);
+        char key[decodedLength]; //don't work with number 16
+        base64_decode(key, encrypted, input2Len);
       
-      // clear the jsonbuffer
-      jsonBuffer.clear();
-  
-      /**
-       * Base 64 decoding
-       * 
-       * @info
-       * To avoid non-ascii and all sort of special characters,
-       * it's a common practice to encode in base64 an encrypted
-       * cipher. The goal is to avoid non-HTTP-compatible characters
-       */
-      int input2Len = strlen(encrypted);
-      int decodedLength = base64_dec_len(encrypted, input2Len);
-      char key[decodedLength]; //don't work with number 16
-      base64_decode(key, encrypted, input2Len);
-    
-      /**
-       * Sharing key decryption
-       * 
-       * @algo : AES
-       * @mode : ECB
-       * @block : 128bits
-       * @param : [16] uint8_t* secret, [16] uint8_t* plaintext
-       * 
-       * Why ECB mode shouldn't be used ? https://blog.filippo.io/the-ecb-penguin/
-       * 
-       * The authorization server send a sharing key to encrypt data
-       * between the protected resource and a device. Since no TLS is available
-       * on the Arduino UNO, we need to register the IOT to the authorization server.
-       * 
-       * In the process of registration, the authorization server generate a
-       * strong "clientSecret". This secret is used for decrypt all
-       * data from authorization server.
-       * 
-       * Now the shared key can be safly transported over
-       * HTTP request
-       */
-      aes128_dec_single(clientSecret, key);
-      Serial.println(key);
-    
-      /**
-       * The resource data 
-       * 
-       * It's just an example, should capture any digital/analog data
-       * that need to be send to the client. Due to the very low amount
-       * of memory available, the data should be len <= 16
-       * 
-       * If needed, the data size is adjusted to the cipherblock with
-       * padding. The method for padding byte is defined in ANSI X.923
-       * of ISO/IEC 9797-1
-       * 
-       * link : https://en.wikipedia.org/wiki/Padding_%28cryptography%29#Byte_padding
-       */
-      uint8_t data[16] = "BACHELOROAUTH2.0";
-      if (strlen((const char*)data) < 16) {;
-        uint8_t k = '0';
-        uint8_t l = '0';
-        for (int i = strlen((const char*)data); i < 15; i++) {
-          k++;
-          if (k > '9') {
-            l++;
+        /**
+         * Sharing key decryption
+         * 
+         * @algo : AES
+         * @mode : ECB
+         * @block : 128bits
+         * @param : [16] uint8_t* secret, [16] uint8_t* plaintext
+         * 
+         * Why ECB mode shouldn't be used ? https://blog.filippo.io/the-ecb-penguin/
+         * 
+         * The authorization server send a sharing key to encrypt data
+         * between the protected resource and a device. Since no TLS is available
+         * on the Arduino UNO, we need to register the IOT to the authorization server.
+         * 
+         * In the process of registration, the authorization server generate a
+         * strong "clientSecret". This secret is used for decrypt all
+         * data from authorization server.
+         * 
+         * Now the shared key can be safly transported over
+         * HTTP request
+         */
+        aes128_dec_single(clientSecret, key);
+        Serial.println(key);
+      
+        /**
+         * The resource data 
+         * 
+         * It's just an example, should capture any digital/analog data
+         * that need to be send to the client. Due to the very low amount
+         * of memory available, the data should be len <= 16
+         * 
+         * If needed, the data size is adjusted to the cipherblock with
+         * padding. The method for padding byte is defined in ANSI X.923
+         * of ISO/IEC 9797-1
+         * 
+         * link : https://en.wikipedia.org/wiki/Padding_%28cryptography%29#Byte_padding
+         */
+        uint8_t data[16] = "BACHELOROAUTH2.0";
+        if (strlen((const char*)data) < 16) {;
+          uint8_t k = '0';
+          uint8_t l = '0';
+          for (int i = strlen((const char*)data); i < 15; i++) {
+            k++;
+            if (k > '9') {
+              l++;
+            }
+            data[i] = '0';
           }
-          data[i] = '0';
+          if (k == '9') {
+            data[14] = '1';
+            data[15] = '0';
+          } else if (k > '9') {
+            data[14] = '1';
+            data[15] = l;
+          } else {
+            k++;
+            data[15] = k;  
+          }
         }
-        if (k == '9') {
-          data[14] = '1';
-          data[15] = '0';
-        } else if (k > '9') {
-          data[14] = '1';
-          data[15] = l;
-        } else {
-          k++;
-          data[15] = k;  
-        }
-      }
-      
-      /**
-       * Data encryption
-       * 
-       * @algo : AES
-       * @mode : ECB
-       * @block : 128bits
-       * @param : [16] uint8_t* secret, [16] uint8_t* plaintext
-       * 
-       * We encrypt the data response with the shared key send
-       * by the Oauth server. The client has exactly the same
-       * key and can decrypt the data. Immediatly after the
-       * encryption complete, the key is deleted
-       */
-      aes128_enc_single(key, (void*)data);
-      memset(key, 0, sizeof(key));
-  
-      // base 64 encoding
-      int inputLen = sizeof(data);
-      int encodedLength = base64_enc_len(inputLen);
-      char encoded[encodedLength]; //base64 len should be 24
-      base64_encode(encoded, (char *)data, encodedLength);
-      
-      /**
-       * Maybe a memory leak or base64 encoding implementation auto pad to a 32 len array
-       * We need to correct the encoded string with a -10 len troncat
-       */
-      encoded[strlen(encoded)-10] = 0;
-      //Serial.println(encoded);  
-      
-      //send response
-      rest.addData("encoded", encoded);
-      Serial.println(freeMemory());
-      rest.sendResponse(OK,0);
-      }
-      break;
+        
+        /**
+         * Data encryption
+         * 
+         * @algo : AES
+         * @mode : ECB
+         * @block : 128bits
+         * @param : [16] uint8_t* secret, [16] uint8_t* plaintext
+         * 
+         * We encrypt the data response with the shared key send
+         * by the Oauth server. The client has exactly the same
+         * key and can decrypt the data. Immediatly after the
+         * encryption complete, the key is deleted
+         */
+        aes128_enc_single(key, (void*)data);
+        memset(key, 0, sizeof(key));
     
-    case 401:
-      rest.sendResponse(UNAUTHORIZED,0);
+        // base 64 encoding
+        int inputLen = sizeof(data);
+        int encodedLength = base64_enc_len(inputLen);
+        char encoded[encodedLength]; //base64 len should be 24
+        base64_encode(encoded, (char *)data, encodedLength);
+        
+        /**
+         * Maybe a memory leak or base64 encoding implementation auto pad to a 32 len array
+         * We need to correct the encoded string with a -10 len troncat
+         */
+        encoded[strlen(encoded)-10] = 0;
+        //Serial.println(encoded);  
+        
+        //send response
+        rest.addData("encoded", encoded);
+        Serial.println(freeMemory());
+        code = OK;
+       } else {
+        code = UNAUTHORIZED;
+       }
+      }
       break;
+
     default:
-      rest.sendResponse(SERVER_ERROR,0);
+      code = UNAUTHORIZED;
   }
+  rest.sendResponse(code,0);
   digitalWrite(LED_BUILTIN, HIGH);
 }
 
@@ -226,15 +234,18 @@ void setup() {
   digitalWrite(LED_BUILTIN, HIGH);
 
   // dynamic ip take 5% more memory than static ip
-  Ethernet.begin(mac, ip);
+  Ethernet.begin(mac, ip, dnsServer, gateway, subnet);
   
   server.begin();
   Serial.println(Ethernet.localIP());
+  Serial.println(Ethernet.dnsServerIP());
+  Serial.println(Ethernet.gatewayIP());
+  Serial.println(Ethernet.subnetMask());
 
   /**
-   * 909 bytes available without calling RestServer
-   * 569 bytes available without not found handler
-   * 539 bytes available before route callback
+   * 930 bytes available without calling any route callback
+   * 590 bytes available without not found handler
+   * 560 bytes available before route callback
    */
   
   rest.addRoute(GET, "/protected", getProtectedResource);
