@@ -30,6 +30,9 @@ const uint8_t clientSecret[16] = {'a','b','c','d','e','f','!','h','i','j','0','1
 EthernetServer server(80);
 RestServer rest(server);
 
+//sensor
+int sensor;
+
 IPAddress ip(192, 168, 192, 80);
 IPAddress gateway(192, 168, 192, 1);
 IPAddress dnsServer(62, 2, 21, 165);
@@ -46,7 +49,6 @@ IPAddress subnet(255, 255, 255, 0);
  * MUST BE encrypted with a SHARED KEY 
  */
 void getProtectedResource(const char* query = "", const char* body = "", const char* bearer = "") {
-  digitalWrite(LED_BUILTIN, LOW);
   /**
    * Send the jwt to authorization server via a post request
    * 
@@ -73,7 +75,7 @@ void getProtectedResource(const char* query = "", const char* body = "", const c
   RestClient client = RestClient("192.168.192.29");
   String response = "";
   client.setHeader("authorization: Basic MDEyMzQ1");
-  int statusCode = client.post("/keys",bearer, &response);
+  int statusCode = client.post("/introspect",bearer, &response);
   char* code;
   switch(statusCode) {
     case 200:
@@ -150,7 +152,16 @@ void getProtectedResource(const char* query = "", const char* body = "", const c
          * 
          * link : https://en.wikipedia.org/wiki/Padding_%28cryptography%29#Byte_padding
          */
-        uint8_t data[16] = "BACHELOROAUTH2.0";
+        Serial.println(sensor);
+        char* msg;
+        if (sensor) {
+          msg = "ACTIF";
+        } else {
+          msg = "INACTIF";
+        }
+        uint8_t data[16];
+        strcpy(data, msg);
+
         if (strlen((const char*)data) < 16) {;
           uint8_t k = '0';
           uint8_t l = '0';
@@ -216,7 +227,6 @@ void getProtectedResource(const char* query = "", const char* body = "", const c
       code = UNAUTHORIZED;
   }
   rest.sendResponse(code,0);
-  digitalWrite(LED_BUILTIN, HIGH);
 }
 
 void notFound(const char* data = "") {
@@ -230,8 +240,7 @@ void setup() {
     Serial.begin(9600); //opens serial port, sets data rate to 9600bps
   #endif
 
-  pinMode(LED_BUILTIN, OUTPUT);
-  digitalWrite(LED_BUILTIN, HIGH);
+  pinMode(4, INPUT);
 
   // dynamic ip take 5% more memory than static ip
   Ethernet.begin(mac, ip, dnsServer, gateway, subnet);
@@ -255,5 +264,6 @@ void setup() {
 }
 
 void loop() {
+  sensor = digitalRead(4);
   rest.run();
 }
