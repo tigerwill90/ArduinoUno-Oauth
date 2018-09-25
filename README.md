@@ -12,15 +12,20 @@ the message layer.
  * [RestClient](https://github.com/csquared/arduino-restclient)
  * [AesLib](https://github.com/DavyLandman/AESLib)
  * [Base64](https://github.com/adamvr/arduino-base64)
- * [ArduinoJson](https://github.com/bblanchon/ArduinoJson)
-
+ * [ArduinoJson v5.13.2](https://github.com/bblanchon/ArduinoJson)
+ * [MemoryFree](https://github.com/maniacbug/MemoryFree/tree/master/examples/FreeMemory)
+ * [Arduino IDE](https://www.arduino.cc/en/main/software)
 
 ### Getting started
 
+You need first to add all dependencies above.
+
 ```
-Currently in developpement
+git clone https://github.com/tigerwill90/ArduinoUno-Oauth.git
+Open the sketch "proofofconcept.ino" in Arduino include
+Select the right board and port
+compile and upload the sketch
 ```
 
-### TODO
-
-* reduce memory usage
+### Version
+v0.6-dev
