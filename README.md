@@ -22,7 +22,7 @@ You need first to add all dependencies above.
 
 ```
 git clone https://github.com/tigerwill90/ArduinoUno-Oauth.git
-Open the sketch "proofofconcept.ino" in Arduino include
+Open the sketch "proofofconcept.ino" in Arduino IDE
 Select the right board and port
 compile and upload the sketch
 ```
